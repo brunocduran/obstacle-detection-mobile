@@ -1,0 +1,15 @@
+
+`	java:S112Q"FDefine and throw a dedicated exception instead of using a generic one.(é”áÿÿÿÿÿ
+D
+java:S1604©"(Make this anonymous inner class a lambda(˜ã¯şÿÿÿÿ
+s
+java:S14501"]Remove the "mCameraPreview" field and declare it as a local variable in the relevant methods.(¹±Âº
+v
+java:S14502"[Remove the "mFrameLayout" field and declare it as a local variable in the relevant methods.(äâ“ƒúÿÿÿÿ
+7
+java:S1116I"Remove this empty statement.(ôÑ‚şÿÿÿÿ
+V
+java:S1126{"AReplace this if-then-else statement by a single return statement.(µ†Êu
+i	java:S100"NRename this method name to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(•û»Ñıÿÿÿÿ
+[
+java:S3398"?Move this method into the anonymous class declared at line 150.(•û»Ñıÿÿÿÿ
