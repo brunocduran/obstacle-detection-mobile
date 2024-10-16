@@ -10,8 +10,10 @@ import android.hardware.Camera;
 import android.hardware.Camera.PictureCallback;
 import android.media.MediaPlayer;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.widget.FrameLayout;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -19,7 +21,9 @@ import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.lifecycle.LifecycleOwner;
 
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 
 import org.tensorflow.lite.Interpreter;
@@ -28,6 +32,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -66,6 +73,16 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
+            //permissão para gravar no armazenamento
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
+            }
+
+            // Chama a função para criar a pasta "imagens", caso ainda não exista
+            DirectoryHelper.createImagesDirectory(this);
+            //criar a pasta modelo, caso não exista
+            DirectoryHelper.createModelDirectory(this);
+
             // Carrega o modelo TensorFlow Lite
             tflite = new Interpreter(loadModelFile());
 
@@ -94,12 +111,23 @@ public class MainActivity extends AppCompatActivity {
 
     // Carregar o modelo .tflite do assets
     private MappedByteBuffer loadModelFile() throws IOException {
-        AssetFileDescriptor fileDescriptor = getAssets().openFd("combined_model.tflite");
-        FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
+        //AssetFileDescriptor fileDescriptor = getAssets().openFd("combined_model.tflite");
+        //FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
+        //FileChannel fileChannel = inputStream.getChannel();
+        //long startOffset = fileDescriptor.getStartOffset();
+        //long declaredLength = fileDescriptor.getDeclaredLength();
+        //return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
+
+        // Crie um objeto File para o modelo usando o getFilesDir() e o nome do arquivo
+        File modelFile = new File(this.getFilesDir(), "modelo/" + DirectoryHelper.getModelFileName(this));
+
+        // Abra o arquivo como FileInputStream
+        FileInputStream inputStream = new FileInputStream(modelFile);
+
+        // Obtenha o canal de arquivo e mapeie o conteúdo para a memória
         FileChannel fileChannel = inputStream.getChannel();
-        long startOffset = fileDescriptor.getStartOffset();
-        long declaredLength = fileDescriptor.getDeclaredLength();
-        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
+        long declaredLength = fileChannel.size(); // Tamanho do arquivo
+        return fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, declaredLength);
     }
 
 
@@ -124,6 +152,7 @@ public class MainActivity extends AppCompatActivity {
     private PictureCallback mPicture = new PictureCallback() {
         @Override
         public void onPictureTaken(byte[] data, Camera camera) {
+
             // Converte os bytes da imagem para um bitmap
             Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
 
@@ -132,13 +161,19 @@ public class MainActivity extends AppCompatActivity {
 
             // Executa o som baseado no resultado da predição
             if (result >= 0.5) {
-                mSoundClear.start();  // Se o resultado indicar que não há obstáculo
+                // Salvar a imagem capturada
+                saveImageToFile(data, "clear.");
+
+                mSoundClear.start();  // Se o resultado indicar que não há obstáculo - 1 bip
             } else {
-                mSoundNotClear.start();  // Se houver obstáculo
+                // Salvar a imagem capturada
+                saveImageToFile(data, "noclear.");
+
+                mSoundNotClear.start();  // Se houver obstáculo - 2 bips
             }
 
+            //Loop da captura de imagens para detecção de obstáculos
             if (!isStopped) {
-                //Comentar caso quiser detectar apenas uma imagem
                 new Handler().postDelayed(new Runnable() {
                     @Override
                     public void run() {
@@ -193,5 +228,35 @@ public class MainActivity extends AppCompatActivity {
     private void reloadCamera() {
         mCamera.startPreview();
     }
-    // endregion
+
+    // Função para salvar a imagem capturada no dispositivo
+    private void saveImageToFile(byte[] data, String title) {
+        // Criar um nome único para o arquivo da imagem com base na data/hora atual
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String imageFileName = title + timeStamp + ".jpg";
+
+        // Diretório onde a imagem será salva (neste caso, no diretório de imagens do dispositivo)
+        //Diretório: Android\data\br.com.projeto.iniciacaocientifica\files\Pictures
+        File storageDir = new File(this.getFilesDir(),"imagens");
+
+        // Verifica se o diretório de armazenamento está acessível
+        if (storageDir != null && !storageDir.exists()) {
+            storageDir.mkdirs(); // Cria o diretório, se não existir
+        }
+
+        // Cria o arquivo da imagem no diretório
+        File imageFile = new File(storageDir, imageFileName);
+
+        // Escrever os bytes da imagem no arquivo
+        try (FileOutputStream fos = new FileOutputStream(imageFile)) {
+            fos.write(data);
+            fos.flush();
+            // Exibir uma mensagem de sucesso
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Imagem salva: " + imageFile.getAbsolutePath(), Toast.LENGTH_SHORT).show());
+        } catch (IOException e) {
+            e.printStackTrace();
+            // Exibir mensagem de erro
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Erro ao salvar a imagem", Toast.LENGTH_SHORT).show());
+        }
+    }
 }
