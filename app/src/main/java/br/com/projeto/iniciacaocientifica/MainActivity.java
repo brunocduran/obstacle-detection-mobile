@@ -2,6 +2,7 @@ package br.com.projeto.iniciacaocientifica;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.hardware.Camera.PictureCallback;
@@ -10,25 +11,19 @@ import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.camera.core.CameraSelector;
-import androidx.camera.core.Preview;
-import androidx.camera.lifecycle.ProcessCameraProvider;
-import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.lifecycle.LifecycleOwner;
 
 import android.view.View;
+import android.widget.Button;
 import android.widget.FrameLayout;
 
-import com.google.common.util.concurrent.ListenableFuture;
+import com.google.firebase.FirebaseApp;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
@@ -74,6 +69,22 @@ public class MainActivity extends AppCompatActivity{
         mSoundNotClear = MediaPlayer.create(MainActivity.this, R.raw.notclear);
 
         setContentView(R.layout.activity_main);
+
+        // Inicializa o Firebase
+        FirebaseApp.initializeApp(this);
+
+
+        /* FUNCAO DO BOTAO CONFIGURACAO*/
+        Button configButton = findViewById(R.id.button_config);
+        configButton.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, Configuracoes.class);
+            startActivity(intent);
+        });
+
+        // Chama a função para criar a pasta "imagens", caso ainda não exista
+        DirectoryHelper.createImagesDirectory(this);
+        //criar a pasta modelo, caso não exista
+        DirectoryHelper.createModelDirectory(this);
 
         try {
             /**Verifica se o dispositivo tem camera*/

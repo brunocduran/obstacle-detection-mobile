@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "53127193062",
+    "project_id": "tccobstacledetection-7bfe8",
+    "storage_bucket": "tccobstacledetection-7bfe8.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:53127193062:android:1de9b98963ddf980597627",
+        "android_client_info": {
+          "package_name": "br.com.projeto.iniciacaocientifica"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAdYe3SEsG6NZKTjhjbKnBdZFiQ6pMhWE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
