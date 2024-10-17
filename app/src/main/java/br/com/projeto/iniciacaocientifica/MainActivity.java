@@ -3,207 +3,260 @@ package br.com.projeto.iniciacaocientifica;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.AssetFileDescriptor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.hardware.Camera;
 import android.hardware.Camera.PictureCallback;
 import android.media.MediaPlayer;
 import android.os.Bundle;
+import android.os.Environment;
+import android.os.Handler;
+import android.widget.FrameLayout;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.camera.core.CameraSelector;
-import androidx.camera.core.Preview;
-import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LifecycleOwner;
 
-import android.view.View;
-import android.widget.FrameLayout;
-
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
-import org.jetbrains.annotations.NotNull;
-
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 
-import okhttp3.MediaType;
-import okhttp3.MultipartBody;
-import okhttp3.Request;
-import okhttp3.RequestBody;
+import org.tensorflow.lite.Interpreter;
 
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.OkHttpClient;
-import okhttp3.Response;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
-public class MainActivity extends AppCompatActivity{
+public class MainActivity extends AppCompatActivity {
 
-//region Variables Global
-    
+    // region Variables Global
     private Camera mCamera;
-
     private CameraPreview mCameraPreview;
     private FrameLayout mFrameLayout;
 
     private MediaPlayer mSoundClear = null;
     private MediaPlayer mSoundNotClear = null;
 
-    private Gson mGson = new GsonBuilder().setPrettyPrinting().create();
-
-    private Employee mRetorno = null;
-
-    private OkHttpClient mClient = new OkHttpClient();
-
-    private static final String URL = "http://192.168.0.150:5000/predict";
-
+    private Interpreter tflite;
+    private static final int IMAGE_SIZE_X = 224;
+    private static final int IMAGE_SIZE_Y = 224;
     private boolean isStopped = false;
+    // endregion
 
-//endregion
-
-//region Start Application
-
+    // region Start Application
     @Override
-    public void onCreate(Bundle savedInstanceState){
+    public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        mSoundClear = MediaPlayer.create(MainActivity.this, R.raw.clear);;
+        mSoundClear = MediaPlayer.create(MainActivity.this, R.raw.clear);
         mSoundNotClear = MediaPlayer.create(MainActivity.this, R.raw.notclear);
 
         setContentView(R.layout.activity_main);
 
         try {
-            /**Verifica se o dispositivo tem camera*/
-            if (!checkCameraHardware(this)){
+            // Verifica se o dispositivo tem câmera
+            if (!checkCameraHardware(this)) {
                 throw new Exception("Dispositvo não possúi câmera! Não é possível utilizar o APP.");
-            }else{
-                /** Caso tenha câmera, verifica se o aplicativo possui permissão para utiliza-la */
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED){
-                    ActivityCompat.requestPermissions(this, new String[]{ Manifest.permission.CAMERA }, 0);
+            } else {
+                // Caso tenha câmera, verifica se o aplicativo possui permissão para utilizá-la
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 0);
                 }
             }
 
-            /** Criar uma instância de Camera */
+            //permissão para gravar no armazenamento
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
+            }
+
+            // Chama a função para criar a pasta "imagens", caso ainda não exista
+            DirectoryHelper.createImagesDirectory(this);
+            //criar a pasta modelo, caso não exista
+            DirectoryHelper.createModelDirectory(this);
+
+            // Criar uma instância de Camera
             mCamera = getCameraInstance();
 
-            /** Crie visualização e defina-a como o conteúdo de nossa atividade.*/
+            // Cria visualização e define-a como o conteúdo de nossa atividade
             mCameraPreview = new CameraPreview(MainActivity.this, mCamera);
-
             mFrameLayout = findViewById(R.id.camera_preview);
-
             mFrameLayout.addView(mCameraPreview);
 
-            findViewById(R.id.button_capture).setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v){
-                    isStopped = false;
-                    mCamera.takePicture(null, null, mPicture);
-                }
+            // Carrega o modelo TensorFlow Lite
+            tflite = new Interpreter(loadModelFile());
+
+            findViewById(R.id.button_capture).setOnClickListener(v -> {
+                isStopped = false;
+                mCamera.takePicture(null, null, mPicture);
             });
 
-            findViewById(R.id.button_stop).setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v){ isStopped = true; }
-            });
-
-        }catch (Exception e){
-            e.printStackTrace();
-        }
-    }
-
-//endregion
-
-//region Functions
-
-    /** Verifica se este dispositivo tem uma câmera */
-    private boolean checkCameraHardware(@NonNull Context context) {
-        if (context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA)){
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-//endregion
-
-//region Methods
-
-    /** Obtendo uma instância do objeto Camera */
-    public static Camera getCameraInstance(){
-        Camera cam = null;
-        try {
-            cam = Camera.open();
-
-            cam.setDisplayOrientation(90);
-        }
-        catch (Exception e){
-            e.printStackTrace();
-        }
-
-        return cam;
-    }
-
-    /** Capturando o frame */
-    private PictureCallback mPicture = new PictureCallback() {
-        @Override
-        public void onPictureTaken(byte[] data, Camera camera) {
-            SendRequest(data);
-        }
-    };
-
-    /** Método responsável pelo envio da requisição para a API */
-    private void SendRequest(byte[] image){
-        try {
-            //Preparando Requisição para os servidor flask
-            RequestBody postBodyImage = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("file", "androidFlask.jpg", RequestBody.create(MediaType.parse("image/*jpg"), image)).build();
-
-            Request request = new Request.Builder().url(URL).post(postBodyImage).build();
-
-            //Enviando requisição e recuperando a resposta
-            mClient.newCall(request).enqueue(new Callback() {
-                @Override
-                public void onFailure(@NotNull Call call, @NotNull IOException e) {
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            mSoundNotClear.start();
-
-                            mCamera.takePicture(null, null, mPicture);
-                        }
-                    });
-                }
-
-                @Override
-                public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
-                    mRetorno = mGson.fromJson(response.body().string(), Employee.class);
-
-                    if (Integer.parseInt(mRetorno.getResult()) == 1) {
-                        mSoundClear.start();
-                    } else {
-                        mSoundNotClear.start();
-                    }
-
-                    if (!isStopped){
-                        mCamera.takePicture(null, null, mPicture);
-                    }
-                }
-            });
-
-            reloadCamera();
+            findViewById(R.id.button_stop).setOnClickListener(v -> isStopped = true);
 
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
+    // endregion
 
-    /** Limpando a visualização para o proximo frame */
-    private void reloadCamera(){
+    // region Methods
+
+    // Carregar o modelo .tflite do assets
+    private MappedByteBuffer loadModelFile() throws IOException {
+        //AssetFileDescriptor fileDescriptor = getAssets().openFd("combined_model.tflite");
+        //FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
+        //FileChannel fileChannel = inputStream.getChannel();
+        //long startOffset = fileDescriptor.getStartOffset();
+        //long declaredLength = fileDescriptor.getDeclaredLength();
+        //return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
+
+        // Crie um objeto File para o modelo usando o getFilesDir() e o nome do arquivo
+        File modelFile = new File(this.getFilesDir(), "modelo/" + DirectoryHelper.getModelFileName(this));
+
+        // Abra o arquivo como FileInputStream
+        FileInputStream inputStream = new FileInputStream(modelFile);
+
+        // Obtenha o canal de arquivo e mapeie o conteúdo para a memória
+        FileChannel fileChannel = inputStream.getChannel();
+        long declaredLength = fileChannel.size(); // Tamanho do arquivo
+        return fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, declaredLength);
+    }
+
+
+    // Verifica se o dispositivo tem uma câmera
+    private boolean checkCameraHardware(@NonNull Context context) {
+        return context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA);
+    }
+
+    // Obtendo uma instância do objeto Camera
+    public static Camera getCameraInstance() {
+        Camera cam = null;
+        try {
+            cam = Camera.open();
+            cam.setDisplayOrientation(90);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return cam;
+    }
+
+    // Capturando o frame
+    private PictureCallback mPicture = new PictureCallback() {
+        @Override
+        public void onPictureTaken(byte[] data, Camera camera) {
+
+            // Converte os bytes da imagem para um bitmap
+            Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
+
+            // Faz a predição local usando o modelo TensorFlow Lite
+            float result = runInference(bitmap);
+
+            // Executa o som baseado no resultado da predição
+            if (result >= 0.5) {
+                // Salvar a imagem capturada
+                saveImageToFile(data, "clear.");
+
+                mSoundClear.start();  // Se o resultado indicar que não há obstáculo - 1 bip
+            } else {
+                // Salvar a imagem capturada
+                saveImageToFile(data, "noclear.");
+
+                mSoundNotClear.start();  // Se houver obstáculo - 2 bips
+            }
+
+            //Loop da captura de imagens para detecção de obstáculos
+            if (!isStopped) {
+                new Handler().postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mCamera.takePicture(null, null, mPicture);
+                    }
+                }, 500);
+            }
+
+            reloadCamera();
+        }
+    };
+
+    // Método para rodar a inferência no modelo TFLite
+    private float runInference(Bitmap bitmap) {
+        Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, IMAGE_SIZE_X, IMAGE_SIZE_Y, true);
+        ByteBuffer inputBuffer = convertBitmapToByteBuffer(resizedBitmap);
+
+        // Atualize para lidar com a saída bidimensional
+        float[][] output = new float[1][1];  // Alterado para [1][1] para refletir o shape correto
+
+        // Executa a inferência
+        tflite.run(inputBuffer, output);
+
+        // Acessa o valor de saída (primeiro e único valor)
+        float result = output[0][0];
+
+        return result;
+    }
+
+    // Converter Bitmap para ByteBuffer para ser usado no modelo TFLite
+    private ByteBuffer convertBitmapToByteBuffer(Bitmap bitmap) {
+        ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * IMAGE_SIZE_X * IMAGE_SIZE_Y * 3);
+        byteBuffer.order(ByteOrder.nativeOrder());
+
+        int[] intValues = new int[IMAGE_SIZE_X * IMAGE_SIZE_Y];
+        bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
+
+        int pixel = 0;
+        for (int i = 0; i < IMAGE_SIZE_X; ++i) {
+            for (int j = 0; j < IMAGE_SIZE_Y; ++j) {
+                final int val = intValues[pixel++];
+                // corresponder ao preprocess_input da VGG16/VGG19:
+                byteBuffer.putFloat((((val >> 16) & 0xFF) - 123.68f));  // Canal Vermelho
+                byteBuffer.putFloat((((val >> 8) & 0xFF) - 116.779f));  // Canal Verde
+                byteBuffer.putFloat(((val & 0xFF) - 103.939f));         // Canal Azu
+            }
+        }
+        return byteBuffer;
+    }
+
+    // Limpando a visualização para o próximo frame
+    private void reloadCamera() {
         mCamera.startPreview();
     }
 
-//endregion
+    // Função para salvar a imagem capturada no dispositivo
+    private void saveImageToFile(byte[] data, String title) {
+        // Criar um nome único para o arquivo da imagem com base na data/hora atual
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String imageFileName = title + timeStamp + ".jpg";
 
+        // Diretório onde a imagem será salva (neste caso, no diretório de imagens do dispositivo)
+        //Diretório: Android\data\br.com.projeto.iniciacaocientifica\files\Pictures
+        File storageDir = new File(this.getFilesDir(),"imagens");
+
+        // Verifica se o diretório de armazenamento está acessível
+        if (storageDir != null && !storageDir.exists()) {
+            storageDir.mkdirs(); // Cria o diretório, se não existir
+        }
+
+        // Cria o arquivo da imagem no diretório
+        File imageFile = new File(storageDir, imageFileName);
+
+        // Escrever os bytes da imagem no arquivo
+        try (FileOutputStream fos = new FileOutputStream(imageFile)) {
+            fos.write(data);
+            fos.flush();
+            // Exibir uma mensagem de sucesso
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Imagem salva: " + imageFile.getAbsolutePath(), Toast.LENGTH_SHORT).show());
+        } catch (IOException e) {
+            e.printStackTrace();
+            // Exibir mensagem de erro
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Erro ao salvar a imagem", Toast.LENGTH_SHORT).show());
+        }
+    }
 }
