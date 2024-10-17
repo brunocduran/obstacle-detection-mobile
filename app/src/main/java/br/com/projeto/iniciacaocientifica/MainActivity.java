@@ -83,9 +83,6 @@ public class MainActivity extends AppCompatActivity {
             //criar a pasta modelo, caso não exista
             DirectoryHelper.createModelDirectory(this);
 
-            // Carrega o modelo TensorFlow Lite
-            tflite = new Interpreter(loadModelFile());
-
             // Criar uma instância de Camera
             mCamera = getCameraInstance();
 
@@ -93,6 +90,9 @@ public class MainActivity extends AppCompatActivity {
             mCameraPreview = new CameraPreview(MainActivity.this, mCamera);
             mFrameLayout = findViewById(R.id.camera_preview);
             mFrameLayout.addView(mCameraPreview);
+
+            // Carrega o modelo TensorFlow Lite
+            tflite = new Interpreter(loadModelFile());
 
             findViewById(R.id.button_capture).setOnClickListener(v -> {
                 isStopped = false;
