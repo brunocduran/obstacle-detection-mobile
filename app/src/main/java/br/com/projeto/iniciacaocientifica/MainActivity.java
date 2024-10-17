@@ -2,6 +2,7 @@ package br.com.projeto.iniciacaocientifica;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
@@ -17,6 +18,18 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+
+import android.view.View;
+import android.widget.Button;
+import android.widget.FrameLayout;
+
+import com.google.firebase.FirebaseApp;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
+import org.jetbrains.annotations.NotNull;
+
 import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.lifecycle.LifecycleOwner;
@@ -61,6 +74,22 @@ public class MainActivity extends AppCompatActivity {
         mSoundNotClear = MediaPlayer.create(MainActivity.this, R.raw.notclear);
 
         setContentView(R.layout.activity_main);
+
+        // Inicializa o Firebase
+        FirebaseApp.initializeApp(this);
+
+
+        /* FUNCAO DO BOTAO CONFIGURACAO*/
+        Button configButton = findViewById(R.id.button_config);
+        configButton.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, Configuracoes.class);
+            startActivity(intent);
+        });
+
+        // Chama a função para criar a pasta "imagens", caso ainda não exista
+        DirectoryHelper.createImagesDirectory(this);
+        //criar a pasta modelo, caso não exista
+        DirectoryHelper.createModelDirectory(this);
 
         try {
             // Verifica se o dispositivo tem câmera
