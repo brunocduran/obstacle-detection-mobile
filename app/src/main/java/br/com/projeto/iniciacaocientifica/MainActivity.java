@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.hardware.Camera;
 import android.hardware.Camera.PictureCallback;
 import android.media.MediaPlayer;
@@ -34,6 +35,7 @@ import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.lifecycle.LifecycleOwner;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -185,6 +187,12 @@ public class MainActivity extends AppCompatActivity {
             // Converte os bytes da imagem para um bitmap
             Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
 
+            // Rotaciona a imagem em 90 graus no sentido horário
+            bitmap = rotateImage(bitmap, 90);
+
+            // Converte o bitmap rotacionado de volta para byte[]
+            data = convertBitmapToByteArray(bitmap);
+
             // Faz a predição local usando o modelo TensorFlow Lite
             float result = runInference(bitmap);
 
@@ -214,6 +222,20 @@ public class MainActivity extends AppCompatActivity {
             reloadCamera();
         }
     };
+
+    // Função para rotacionar a imagem em 90 graus no sentido horário
+    private Bitmap rotateImage(Bitmap source, float angle) {
+        Matrix matrix = new Matrix();
+        matrix.postRotate(angle);
+        return Bitmap.createBitmap(source, 0, 0, source.getWidth(), source.getHeight(), matrix, true);
+    }
+
+    // Função para converter Bitmap de volta para byte[]
+    private byte[] convertBitmapToByteArray(Bitmap bitmap) {
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream);  // Aqui, pode ser JPEG ou PNG
+        return byteArrayOutputStream.toByteArray();
+    }
 
     // Método para rodar a inferência no modelo TFLite
     private float runInference(Bitmap bitmap) {
