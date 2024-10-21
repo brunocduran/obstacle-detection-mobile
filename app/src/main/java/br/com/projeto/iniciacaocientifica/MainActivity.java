@@ -48,8 +48,15 @@ import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.IntStream;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -66,6 +73,10 @@ public class MainActivity extends AppCompatActivity {
     private static final int IMAGE_SIZE_Y = 224;
     private boolean isStopped = false;
     // endregion
+
+    // Variáveis de classe para reutilização
+    private ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * IMAGE_SIZE_X * IMAGE_SIZE_Y * 3);
+    private int[] intValues = new int[IMAGE_SIZE_X * IMAGE_SIZE_Y];
 
     // region Start Application
     @Override
@@ -254,7 +265,6 @@ public class MainActivity extends AppCompatActivity {
         return result;
     }
 
-    // Converter Bitmap para ByteBuffer para ser usado no modelo TFLite
     private ByteBuffer convertBitmapToByteBuffer(Bitmap bitmap) {
         ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * IMAGE_SIZE_X * IMAGE_SIZE_Y * 3);
         byteBuffer.order(ByteOrder.nativeOrder());
@@ -262,15 +272,13 @@ public class MainActivity extends AppCompatActivity {
         int[] intValues = new int[IMAGE_SIZE_X * IMAGE_SIZE_Y];
         bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
 
-        int pixel = 0;
-        for (int i = 0; i < IMAGE_SIZE_X; ++i) {
-            for (int j = 0; j < IMAGE_SIZE_Y; ++j) {
-                final int val = intValues[pixel++];
-                // corresponder ao preprocess_input da VGG16/VGG19:
-                byteBuffer.putFloat((((val >> 16) & 0xFF) - 123.68f));  // Canal Vermelho
-                byteBuffer.putFloat((((val >> 8) & 0xFF) - 116.779f));  // Canal Verde
-                byteBuffer.putFloat(((val & 0xFF) - 103.939f));         // Canal Azu
-            }
+        // Processando todos os pixels
+        for (int i = 0; i < intValues.length; i++) {
+            int val = intValues[i];
+            // Convertendo e normalizando
+            byteBuffer.putFloat(((val >> 16) & 0xFF) - 123.68f); // Red
+            byteBuffer.putFloat(((val >> 8) & 0xFF) - 116.779f); // Green
+            byteBuffer.putFloat((val & 0xFF) - 103.939f);        // Blue
         }
         return byteBuffer;
     }
