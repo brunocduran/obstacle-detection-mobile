@@ -208,7 +208,7 @@ public class MainActivity extends AppCompatActivity {
             float result = runInference(bitmap);
 
             // Executa o som baseado no resultado da predição
-            if (result >= 0.5) {
+            if (result >= 0.1) {
                 // Salvar a imagem capturada
                 saveImageToFile(data, "clear.");
 
@@ -274,12 +274,24 @@ public class MainActivity extends AppCompatActivity {
 
         // Processando todos os pixels
         for (int i = 0; i < intValues.length; i++) {
-            int val = intValues[i];
-            // Convertendo e normalizando
-            byteBuffer.putFloat(((val >> 16) & 0xFF) - 123.68f); // Red
-            byteBuffer.putFloat(((val >> 8) & 0xFF) - 116.779f); // Green
-            byteBuffer.putFloat((val & 0xFF) - 103.939f);        // Blue
+            int pixel = intValues[i];
+
+            // Extrair cores do pixel
+            int r = (pixel >> 16) & 0xFF;
+            int g = (pixel >> 8) & 0xFF;
+            int b = pixel & 0xFF;
+
+            // Normalizar para o intervalo [-1, 1] conforme o preprocess_input do MobileNetV2
+            float normalizedR = (r / 127.5f) - 1.0f;
+            float normalizedG = (g / 127.5f) - 1.0f;
+            float normalizedB = (b / 127.5f) - 1.0f;
+
+            // Colocar os valores no ByteBuffer
+            byteBuffer.putFloat(normalizedR);
+            byteBuffer.putFloat(normalizedG);
+            byteBuffer.putFloat(normalizedB);
         }
+
         return byteBuffer;
     }
 
