@@ -208,7 +208,7 @@ public class MainActivity extends AppCompatActivity {
             float result = runInference(bitmap);
 
             // Executa o som baseado no resultado da predição
-            if (result >= 0.1) {
+            if (result >= 0.5) {
                 // Salvar a imagem capturada
                 saveImageToFile(data, "clear.");
 
