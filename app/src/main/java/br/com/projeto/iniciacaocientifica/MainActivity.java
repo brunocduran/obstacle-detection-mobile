@@ -4,7 +4,6 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
@@ -12,73 +11,42 @@ import android.hardware.Camera;
 import android.hardware.Camera.PictureCallback;
 import android.media.MediaPlayer;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
 import android.widget.FrameLayout;
 import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-
-import android.view.View;
 import android.widget.Button;
-import android.widget.FrameLayout;
-
 import com.google.firebase.FirebaseApp;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
-import org.jetbrains.annotations.NotNull;
-
-import androidx.camera.view.PreviewView;
-import androidx.core.app.ActivityCompat;
-import androidx.lifecycle.LifecycleOwner;
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-
 import org.tensorflow.lite.Interpreter;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.stream.IntStream;
 
 public class MainActivity extends AppCompatActivity {
 
-    // region Variables Global
     private Camera mCamera;
     private CameraPreview mCameraPreview;
     private FrameLayout mFrameLayout;
-
     private MediaPlayer mSoundClear = null;
     private MediaPlayer mSoundNotClear = null;
-
     private Interpreter tflite;
     private static final int IMAGE_SIZE_X = 224;
     private static final int IMAGE_SIZE_Y = 224;
     private boolean isStopped = false;
-    // endregion
-
-    // Variáveis de classe para reutilização
     private ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * IMAGE_SIZE_X * IMAGE_SIZE_Y * 3);
     private int[] intValues = new int[IMAGE_SIZE_X * IMAGE_SIZE_Y];
 
-    // region Start Application
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -91,8 +59,6 @@ public class MainActivity extends AppCompatActivity {
         // Inicializa o Firebase
         FirebaseApp.initializeApp(this);
 
-
-        /* FUNCAO DO BOTAO CONFIGURACAO*/
         Button configButton = findViewById(R.id.button_config);
         configButton.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, Configuracoes.class);
@@ -101,30 +67,27 @@ public class MainActivity extends AppCompatActivity {
 
         // Chama a função para criar a pasta "imagens", caso ainda não exista
         DirectoryHelper.createImagesDirectory(this);
-        //criar a pasta modelo, caso não exista
         DirectoryHelper.createModelDirectory(this);
 
+        // Verifica se o dispositivo tem câmera
+        if (!checkCameraHardware(this)) {
+            Toast.makeText(this, "Dispositivo não possui câmera!", Toast.LENGTH_LONG).show();
+            finish(); // Encerra o app se não houver câmera
+        }
+
+        // Verifica se a permissão para a câmera foi concedida
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            // Solicita a permissão
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 0);
+        } else {
+            // Se a permissão já foi concedida, inicializa a câmera
+            initializeCameraAndModel();
+        }
+    }
+
+    // Método para inicializar a câmera e o modelo
+    private void initializeCameraAndModel() {
         try {
-            // Verifica se o dispositivo tem câmera
-            if (!checkCameraHardware(this)) {
-                throw new Exception("Dispositvo não possúi câmera! Não é possível utilizar o APP.");
-            } else {
-                // Caso tenha câmera, verifica se o aplicativo possui permissão para utilizá-la
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 0);
-                }
-            }
-
-            //permissão para gravar no armazenamento
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
-            }
-
-            // Chama a função para criar a pasta "imagens", caso ainda não exista
-            DirectoryHelper.createImagesDirectory(this);
-            //criar a pasta modelo, caso não exista
-            DirectoryHelper.createModelDirectory(this);
-
             // Criar uma instância de Camera
             mCamera = getCameraInstance();
 
@@ -132,9 +95,6 @@ public class MainActivity extends AppCompatActivity {
             mCameraPreview = new CameraPreview(MainActivity.this, mCamera);
             mFrameLayout = findViewById(R.id.camera_preview);
             mFrameLayout.addView(mCameraPreview);
-
-            // Carrega o modelo TensorFlow Lite
-            tflite = new Interpreter(loadModelFile());
 
             findViewById(R.id.button_capture).setOnClickListener(v -> {
                 isStopped = false;
@@ -145,20 +105,30 @@ public class MainActivity extends AppCompatActivity {
 
         } catch (Exception e) {
             e.printStackTrace();
+            Toast.makeText(this, "Erro ao inicializar a câmera!", Toast.LENGTH_SHORT).show();
         }
     }
-    // endregion
 
-    // region Methods
+    // Método chamado quando o usuário responde à solicitação de permissão
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == 0) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Se a permissão foi concedida, inicializa a câmera
+                initializeCameraAndModel();
+            } else {
+                // Se a permissão foi negada, exibe uma mensagem e encerra o app
+                Toast.makeText(this, "Permissão para usar a câmera foi negada!", Toast.LENGTH_LONG).show();
+                finish(); // Encerra o app
+            }
+        }
+    }
+
 
     // Carregar o modelo .tflite do assets
     private MappedByteBuffer loadModelFile() throws IOException {
-        //AssetFileDescriptor fileDescriptor = getAssets().openFd("combined_model.tflite");
-        //FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
-        //FileChannel fileChannel = inputStream.getChannel();
-        //long startOffset = fileDescriptor.getStartOffset();
-        //long declaredLength = fileDescriptor.getDeclaredLength();
-        //return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
 
         // Crie um objeto File para o modelo usando o getFilesDir() e o nome do arquivo
         File modelFile = new File(this.getFilesDir(), "modelo/" + DirectoryHelper.getModelFileName(this));
@@ -323,11 +293,32 @@ public class MainActivity extends AppCompatActivity {
             fos.write(data);
             fos.flush();
             // Exibir uma mensagem de sucesso
-            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Imagem salva: " + imageFile.getAbsolutePath(), Toast.LENGTH_SHORT).show());
+            if(title.equals("clear.")){
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Nenhum obstáculo detectado! Imagem salva.", Toast.LENGTH_SHORT).show());
+            }else{
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Obstáculo detectado! Imagem salva.", Toast.LENGTH_SHORT).show());
+            }
+            //runOnUiThread(() -> Toast.makeText(MainActivity.this, "Imagem salva: " + imageFile.getAbsolutePath(), Toast.LENGTH_SHORT).show());
         } catch (IOException e) {
             e.printStackTrace();
             // Exibir mensagem de erro
-            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Erro ao salvar a imagem", Toast.LENGTH_SHORT).show());
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Erro ao salvar a imagem.", Toast.LENGTH_SHORT).show());
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        try {
+            if (mCamera == null) {
+                initializeCameraAndModel();
+            }
+            // Carrega o modelo TensorFlow Lite
+            tflite = new Interpreter(loadModelFile());
+            Toast.makeText(this, "Modelo carregado com sucesso.", Toast.LENGTH_SHORT).show();
+        } catch (IOException e) {
+            e.printStackTrace();
+            Toast.makeText(this, "Nenhum modelo entrado. Sincronize o aplicativo!", Toast.LENGTH_SHORT).show();
         }
     }
 }

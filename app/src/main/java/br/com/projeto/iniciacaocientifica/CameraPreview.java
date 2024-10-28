@@ -2,16 +2,9 @@ package br.com.projeto.iniciacaocientifica;
 
 import android.content.Context;
 import android.hardware.Camera;
-import android.view.Display;
-import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.WindowManager;
-
-import androidx.annotation.NonNull;
-
 import java.io.IOException;
-import java.lang.reflect.Method;
 
 /** classe básica de visualização da câmera */
 public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback {
