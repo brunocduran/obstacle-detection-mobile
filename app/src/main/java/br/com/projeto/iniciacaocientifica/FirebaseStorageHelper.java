@@ -1,9 +1,8 @@
 package br.com.projeto.iniciacaocientifica;
+
 import android.content.Context;
 import android.net.Uri;
 import android.util.Log;
-import android.widget.Toast;
-
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.storage.FileDownloadTask;
 import com.google.firebase.storage.FirebaseStorage;

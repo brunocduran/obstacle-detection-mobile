@@ -3,7 +3,6 @@ package br.com.projeto.iniciacaocientifica;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
-
 import java.io.ByteArrayOutputStream;
 
 public class BitmapTools {

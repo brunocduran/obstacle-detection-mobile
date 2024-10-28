@@ -2,9 +2,7 @@ package br.com.projeto.iniciacaocientifica;
 
 import android.content.Context;
 import android.util.Log;
-
 import java.io.File;
-
 
 public class DirectoryHelper {
 
