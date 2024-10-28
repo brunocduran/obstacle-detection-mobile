@@ -318,7 +318,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Modelo carregado com sucesso.", Toast.LENGTH_SHORT).show();
         } catch (IOException e) {
             e.printStackTrace();
-            Toast.makeText(this, "Nenhum modelo entrado. Sincronize o aplicativo!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Nenhum modelo encontrado. Sincronize o aplicativo!", Toast.LENGTH_SHORT).show();
         }
     }
 }
