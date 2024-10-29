@@ -1,11 +1,14 @@
 package br.com.projeto.iniciacaocientifica;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -20,6 +23,10 @@ public class Configuracoes extends AppCompatActivity {
     private FirebaseStorageHelper storageHelper;
     private TextView logTextView;
     private ScrollView scrollViewLog;
+    private CheckBox autoUploadCheckBox;
+    private SharedPreferences sharedPreferences;
+    private static final String PREF_NAME = "app_preferences";
+    private static final String AUTO_UPLOAD_KEY = "auto_upload_images";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,6 +63,31 @@ public class Configuracoes extends AppCompatActivity {
                 }
             }
         });
+
+        Button excluirImagemButton = findViewById(R.id.btn_limpar_imagens);
+        excluirImagemButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                deleteImages();
+            }
+        });
+
+        // Inicializa o SharedPreferences
+        sharedPreferences = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
+
+        // Referencia o CheckBox da tela
+        autoUploadCheckBox = findViewById(R.id.checkbox_auto_upload);
+
+        // Carrega a preferência salva e ajusta o estado do CheckBox
+        boolean isChecked = sharedPreferences.getBoolean(AUTO_UPLOAD_KEY, false); // false por padrão
+        autoUploadCheckBox.setChecked(isChecked);
+
+        // Salva a preferência ao modificar o CheckBox
+        autoUploadCheckBox.setOnCheckedChangeListener((buttonView, isChecked1) -> {
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putBoolean(AUTO_UPLOAD_KEY, isChecked1);
+            editor.apply(); // Salva a preferência
+        });
     }
 
     private void sincronizar() {
@@ -80,11 +112,34 @@ public class Configuracoes extends AppCompatActivity {
         });
     }
 
+    private void deleteImages(){
+        appendLog("Iniciando a exclusão de imagens...");
+
+        File imagesDir = new File(this.getFilesDir(), "imagens");
+
+        // Verifica se o diretório "imagens" existe e contém arquivos
+        if (imagesDir.exists() && imagesDir.isDirectory()) {
+            File[] imageFiles = imagesDir.listFiles(); // Lista os arquivos na pasta
+
+            if (imageFiles != null && imageFiles.length > 0) {
+                appendLog("Excluindo " + imageFiles.length + (imageFiles.length > 1 ? " imagens..." : " imagem..."));
+                for (File imageFile : imageFiles) {
+                    if (imageFile.isFile()) {
+                        imageFile.delete();
+                    }
+                }
+                appendLog("Imagens excluidas com sucesso...");
+            } else {
+                appendLog("Não há imagens a serem excluídas");
+            }
+        }
+    }
 
 
-    private void sendImages(Runnable onComplete) {
+
+    public void sendImages(Runnable onComplete) {
         appendLog("Iniciando o envio de imagens...");
-        final Integer numImages = getNumberImages();
+        final Integer numImages = getNumberImages(this);
 
         if (numImages > 0) {
             appendLog("Enviando " + numImages + (numImages > 1 ? " imagens..." : " imagem..."));
@@ -146,14 +201,14 @@ public class Configuracoes extends AppCompatActivity {
     }
 
     // Função para escrever o log
-    private void appendLog(String message) {
+    public void appendLog(String message) {
         logTextView.append("\n" + message);
         // Faz o ScrollView ir para o final conforme novas mensagens são adicionadas
         scrollViewLog.post(() -> scrollViewLog.fullScroll(View.FOCUS_DOWN));
     }
 
-    private int getNumberImages() {
-        File imagesDir = new File(this.getFilesDir(), "imagens");
+    public static int getNumberImages(Context context) {
+        File imagesDir = new File(context.getFilesDir(), "imagens");
 
         // Verifica se o diretório "imagens" existe e contém arquivos
         if (imagesDir.exists() && imagesDir.isDirectory()) {

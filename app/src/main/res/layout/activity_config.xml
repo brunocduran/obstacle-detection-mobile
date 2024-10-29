@@ -25,7 +25,6 @@
         android:id="@+id/btn_voltar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
         android:text="Voltar para Câmera"
         android:textColor="#FFFFFF"
         android:textStyle="bold"
@@ -37,7 +36,7 @@
         android:id="@+id/btn_sincronizar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="8dp"
         android:text="Sincronizar"
         android:textColor="#FFFFFF"
         android:textStyle="bold"
@@ -47,11 +46,12 @@
 
     <ScrollView
         android:id="@+id/scroll_view_log"
-        android:layout_width="411dp"
-        android:layout_height="380dp"
-        android:layout_marginTop="32dp"
+        android:layout_width="413dp"
+        android:layout_height="403dp"
+        android:layout_marginTop="28dp"
         android:scrollbarStyle="insideInset"
-        app:layout_constraintTop_toBottomOf="@+id/btn_limpar_imagens">
+        app:layout_constraintTop_toBottomOf="@+id/checkbox_auto_upload"
+        tools:layout_editor_absoluteX="0dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -63,6 +63,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_marginLeft="20dp"
+                android:layout_marginRight="20dp"
                 android:text="Log Sincronização"
                 android:textColor="?attr/colorOnPrimary"
                 android:textSize="14sp"
@@ -70,11 +71,23 @@
         </LinearLayout>
     </ScrollView>
 
+    <CheckBox
+        android:id="@+id/checkbox_auto_upload"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Enviar imagens automaticamente"
+        android:textColor="?attr/colorOnPrimary"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_limpar_imagens" />
+
     <Button
         android:id="@+id/btn_limpar_imagens"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="8dp"
         android:text="LIMPAR IMAGENS"
         android:textColor="#FFFFFF"
         android:textStyle="bold"

@@ -3,6 +3,7 @@ package br.com.projeto.iniciacaocientifica;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -12,19 +13,27 @@ import android.hardware.Camera.PictureCallback;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.widget.FrameLayout;
 import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+
 import android.widget.Button;
+
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.firebase.FirebaseApp;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+
 import org.tensorflow.lite.Interpreter;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
@@ -32,6 +41,8 @@ import java.nio.channels.FileChannel;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -46,6 +57,14 @@ public class MainActivity extends AppCompatActivity {
     private boolean isStopped = false;
     private ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * IMAGE_SIZE_X * IMAGE_SIZE_Y * 3);
     private int[] intValues = new int[IMAGE_SIZE_X * IMAGE_SIZE_Y];
+    private int numImagesArmazenadas;
+    private boolean syncIsRunning = false;
+    private boolean numImageIsRestored = false;
+    private FirebaseStorageHelper storageHelper;
+    private SharedPreferences sharedPreferences;
+    private static final String PREF_NAME = "app_preferences";
+    private static final String AUTO_UPLOAD_KEY = "auto_upload_images";
+    boolean isAutoUploadEnabled = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -58,6 +77,9 @@ public class MainActivity extends AppCompatActivity {
 
         // Inicializa o Firebase
         FirebaseApp.initializeApp(this);
+
+        // Inicialize o storageHelper
+        storageHelper = new FirebaseStorageHelper(this);
 
         Button configButton = findViewById(R.id.button_config);
         configButton.setOnClickListener(v -> {
@@ -278,7 +300,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Diretório onde a imagem será salva (neste caso, no diretório de imagens do dispositivo)
         //Diretório: Android\data\br.com.projeto.iniciacaocientifica\files\Pictures
-        File storageDir = new File(this.getFilesDir(),"imagens");
+        File storageDir = new File(this.getFilesDir(), "imagens");
 
         // Verifica se o diretório de armazenamento está acessível
         if (storageDir != null && !storageDir.exists()) {
@@ -293,10 +315,41 @@ public class MainActivity extends AppCompatActivity {
             fos.write(data);
             fos.flush();
             // Exibir uma mensagem de sucesso
-            if(title.equals("clear.")){
+            if (title.equals("clear.")) {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Nenhum obstáculo detectado! Imagem salva.", Toast.LENGTH_SHORT).show());
-            }else{
+            } else {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Obstáculo detectado! Imagem salva.", Toast.LENGTH_SHORT).show());
+            }
+
+            Log.e("MainActivity", "Variavel isAutoUploadEnabled: " + isAutoUploadEnabled);
+
+            if (isAutoUploadEnabled) {
+                Log.e("MainActivity", "Variavel numImagesArmazenadas: " + numImagesArmazenadas);
+                Log.e("MainActivity", "Variavel syncIsRunning: " + syncIsRunning);
+
+                numImagesArmazenadas = numImagesArmazenadas + 1;
+
+                if ((numImagesArmazenadas >= 10) && !syncIsRunning && numImageIsRestored) {
+                    Log.e("MainActivity", "Iniciando o envio de imagens...");
+                    syncIsRunning = true; // Marcar que o envio está em andamento
+
+                    sendImages(new Runnable() {
+                        @Override
+                        public void run() {
+                            syncIsRunning = false; // Marcar que o envio terminou
+                            numImageIsRestored = false;
+                            Log.e("MainActivity", "Envio de imagens concluído.");
+                        }
+                    });
+                } else {
+                    if (!syncIsRunning && !numImageIsRestored) {
+                        numImagesArmazenadas = Configuracoes.getNumberImages(this);
+                        numImageIsRestored = true; // voltar variavel para true para que na proxima vez que rodar, entrar no laco de cima para iniciar o envio novamente apos a numImagesArmazenadas ser atualizada
+                       /* referente a variavel acima, somente syncIsRunning nao seria suficiente pois apos terminar de rodar a sendImages (assincrona) ele é passado pra false e na proxima vez que o laco principal
+                        rodar, ele pode entrar pra enviar novamente sem ter atualizado a variavel numImagesArmazenadas, por isso preciso de uma variavel nova que vai garantir que isso nao aconteça
+                        e tambem para so buscar o numImagesArmzenadas uma vez antes de cada inicio de envio*/
+                    }
+                }
             }
             //runOnUiThread(() -> Toast.makeText(MainActivity.this, "Imagem salva: " + imageFile.getAbsolutePath(), Toast.LENGTH_SHORT).show());
         } catch (IOException e) {
@@ -305,6 +358,43 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> Toast.makeText(MainActivity.this, "Erro ao salvar a imagem.", Toast.LENGTH_SHORT).show());
         }
     }
+
+    // Método para enviar as imagens em uma thread separada
+    public void sendImages(Runnable onComplete) {
+        new Thread(() -> {
+            try {
+                Log.e("MainActivity", "Entrou no sendImages");
+
+                int numImages = Configuracoes.getNumberImages(this);
+                AtomicBoolean allImagesSent = new AtomicBoolean(false);
+                AtomicInteger imagesProcessed = new AtomicInteger(0);
+
+                // Certifique-se de que o storageHelper está inicializado
+                if (storageHelper != null) {
+                    storageHelper.uploadImagesFromDirectory(this, new Runnable() {
+                        @Override
+                        public void run() {
+                            imagesProcessed.incrementAndGet();
+                            if (imagesProcessed.get() == numImages) {
+                                allImagesSent.set(true);
+                                onComplete.run();
+                            }
+                        }
+                    }, e -> {
+                        imagesProcessed.incrementAndGet();
+                        if (imagesProcessed.get() == numImages) {
+                            allImagesSent.set(true);
+                            onComplete.run();
+                        }
+                    }, onComplete);
+                }
+
+            } catch (Exception e) {
+                Log.e("MainActivity", "Erro no envio de imagens: " + e.getMessage());
+            }
+        }).start();
+    }
+
 
     @Override
     protected void onResume() {
@@ -315,6 +405,18 @@ public class MainActivity extends AppCompatActivity {
             }
             // Carrega o modelo TensorFlow Lite
             tflite = new Interpreter(loadModelFile());
+
+            //recupera o valor do checkbox
+            sharedPreferences = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
+
+            // Recupera o valor do CheckBox (se está marcado ou não)
+            isAutoUploadEnabled = sharedPreferences.getBoolean(AUTO_UPLOAD_KEY, false);
+
+            if (isAutoUploadEnabled) {
+                numImagesArmazenadas = Configuracoes.getNumberImages(this);
+                numImageIsRestored = false;
+            }
+
             Toast.makeText(this, "Modelo carregado com sucesso.", Toast.LENGTH_SHORT).show();
         } catch (IOException e) {
             e.printStackTrace();
