@@ -207,7 +207,7 @@ public class MainActivity extends AppCompatActivity {
                 mSoundClear.start();  // Se o resultado indicar que não há obstáculo - 1 bip
             } else {
                 // Salvar a imagem capturada
-                saveImageToFile(data, "noclear.");
+                saveImageToFile(data, "nonclear.");
 
                 mSoundNotClear.start();  // Se houver obstáculo - 2 bips
             }
