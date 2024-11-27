@@ -2,7 +2,7 @@
 
 - Primeiramente, siga o passo a passo descrito em: https://github.com/brunocduran/obstacle-detection/tree/main/credenciais
 
-- No menu do Firebase, vá em adicionar em aplicativo **Android**:
+- No menu do Firebase, vá em adicionar seu aplicativo **Android**:
 
 ![1-Adicionar-App](img/1-Adicionar-App.png)
 
