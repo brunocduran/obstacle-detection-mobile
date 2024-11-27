@@ -16,24 +16,17 @@ import android.os.Handler;
 import android.util.Log;
 import android.widget.FrameLayout;
 import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-
 import android.widget.Button;
-
-import com.google.android.gms.tasks.OnFailureListener;
 import com.google.firebase.FirebaseApp;
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-
 import org.tensorflow.lite.Interpreter;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
